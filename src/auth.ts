@@ -58,7 +58,7 @@ async function main(): Promise<void> {
 
   // Save session
   const savedSession = client.session.save() as unknown as string;
-  fs.writeFileSync(SESSION_FILE, savedSession, "utf-8");
+  fs.writeFileSync(SESSION_FILE, savedSession, { encoding: "utf-8", mode: 0o600 });
 
   console.log("\n✅ Authentication successful!");
   console.log(`Session saved to ${SESSION_FILE}`);

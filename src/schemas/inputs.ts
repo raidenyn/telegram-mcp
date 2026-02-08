@@ -52,6 +52,9 @@ export const SyncChatInputSchema = z
       .describe("Chat ID to sync"),
     since_date: z
       .string()
+      .refine((val) => !isNaN(new Date(val).getTime()), {
+        message: "Invalid date format. Expected ISO 8601 (e.g. '2024-01-01' or '2024-01-01T00:00:00Z').",
+      })
       .optional()
       .describe(
         "Only sync messages after this date (ISO 8601). Omit for full sync or incremental from last sync."

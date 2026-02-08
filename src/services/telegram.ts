@@ -8,6 +8,23 @@ import type { MessageData, ChatInfo, MediaFile, SyncState } from "../types.js";
 const SESSION_FILE = process.env.TELEGRAM_SESSION_PATH || "./telegram.session";
 const DATA_DIR = process.env.DATA_DIR || "./data";
 
+function sanitizeChatId(chatId: string): string {
+  // Allow only digits, minus sign (for negative IDs), and underscores
+  if (!/^-?\d[\w-]*$/.test(chatId)) {
+    throw new Error(`Invalid chat_id format: "${chatId}". Expected a numeric ID.`);
+  }
+  return chatId;
+}
+
+function ensureWithinDir(filePath: string, baseDir: string): string {
+  const resolved = path.resolve(filePath);
+  const resolvedBase = path.resolve(baseDir);
+  if (!resolved.startsWith(resolvedBase + path.sep) && resolved !== resolvedBase) {
+    throw new Error(`Path "${filePath}" escapes the allowed directory.`);
+  }
+  return resolved;
+}
+
 let client: TelegramClient | null = null;
 
 function getSessionString(): string {
@@ -18,7 +35,7 @@ function getSessionString(): string {
 }
 
 function saveSessionString(session: string): void {
-  fs.writeFileSync(SESSION_FILE, session, "utf-8");
+  fs.writeFileSync(SESSION_FILE, session, { encoding: "utf-8", mode: 0o600 });
 }
 
 export async function getClient(): Promise<TelegramClient> {
@@ -187,6 +204,7 @@ export async function downloadMedia(
   messageId: number,
   outputDir: string
 ): Promise<MediaFile | null> {
+  ensureWithinDir(outputDir, DATA_DIR);
   const tg = await getClient();
   const entity = await tg.getEntity(chatId);
 
@@ -250,7 +268,16 @@ export async function syncChat(
   mediaFiles: MediaFile[];
   outputDir: string;
 }> {
-  const chatDir = path.join(DATA_DIR, "raw", chatId);
+  const safeChatId = sanitizeChatId(chatId);
+
+  if (sinceDate !== undefined) {
+    const parsed = new Date(sinceDate);
+    if (isNaN(parsed.getTime())) {
+      throw new Error(`Invalid since_date: "${sinceDate}". Expected ISO 8601 format (e.g. "2024-01-01").`);
+    }
+  }
+
+  const chatDir = path.join(DATA_DIR, "raw", safeChatId);
   const mediaDir = path.join(chatDir, "media");
   fs.mkdirSync(mediaDir, { recursive: true });
 
@@ -344,7 +371,7 @@ export async function syncChat(
   fs.writeFileSync(mediaIndexFile, JSON.stringify(mergedMedia, null, 2));
 
   // Update sync state
-  const maxId = merged.length > 0 ? Math.max(...merged.map((m) => m.id)) : 0;
+  const maxId = merged.reduce((max, m) => (m.id > max ? m.id : max), 0);
   const newState: SyncState = {
     chatId,
     lastMessageId: maxId,
