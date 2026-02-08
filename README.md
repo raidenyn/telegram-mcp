@@ -21,7 +21,7 @@ cp .env.example .env
 npm run auth
 ```
 
-Введи номер телефона → код из Telegram → пароль 2FA (если есть).  
+Введи номер телефона → код из Telegram → пароль 2FA (если есть).
 Сессия сохранится в `telegram.session`.
 
 ## Сборка и запуск
@@ -31,12 +31,58 @@ npm run build
 npm start
 ```
 
+## Транспорты
+
+Сервер поддерживает два режима работы, выбираемых переменной `TRANSPORT`:
+
+| Переменная | Значение | Описание |
+|---|---|---|
+| `TRANSPORT=stdio` | по умолчанию | Локальный запуск через stdin/stdout, авторизация не нужна (процесс изолирован) |
+| `TRANSPORT=http` | сетевой режим | HTTP-сервер на порту `PORT` (по умолчанию 3000), требуется `AUTH_TOKEN` |
+
+### stdio (по умолчанию)
+
+Сервер общается с клиентом через stdin/stdout. Безопасность обеспечивается изоляцией процесса — доступ имеет только тот, кто его запустил.
+
+### HTTP с Bearer token авторизацией
+
+Для сетевого доступа (например, сервер на удалённой машине). Каждый запрос должен содержать заголовок:
+
+```
+Authorization: Bearer <ваш_токен>
+```
+
+Без валидного токена сервер вернёт `401 Unauthorized`.
+
+Сгенерировать токен:
+
+```bash
+node -e "console.log(crypto.randomUUID())"
+```
+
+Настроить в `.env`:
+
+```bash
+TRANSPORT=http
+PORT=3000
+AUTH_TOKEN=ваш-секретный-токен
+```
+
 ## Подключение к Claude Code / Claude Desktop
 
-### Claude Code
+### Claude Code — stdio (локально)
 
 ```bash
 claude mcp add telegram-mcp -- node /path/to/telegram-mcp-server/dist/index.js
+```
+
+### Claude Code — HTTP (удалённый сервер)
+
+```bash
+claude mcp add telegram-mcp \
+  --transport http \
+  --url http://your-server:3000/mcp \
+  --header "Authorization: Bearer ваш-секретный-токен"
 ```
 
 ### Claude Desktop (config)
@@ -56,6 +102,39 @@ claude mcp add telegram-mcp -- node /path/to/telegram-mcp-server/dist/index.js
     }
   }
 }
+```
+
+## Docker
+
+### Сборка
+
+```bash
+docker build -t telegram-mcp .
+```
+
+### Запуск — stdio
+
+```bash
+docker run --rm -i \
+  -e TELEGRAM_API_ID=12345 \
+  -e TELEGRAM_API_HASH=abc123 \
+  -v ./telegram.session:/app/telegram.session \
+  -v ./data:/app/data \
+  telegram-mcp
+```
+
+### Запуск — HTTP с авторизацией
+
+```bash
+docker run -d \
+  -e TRANSPORT=http \
+  -e AUTH_TOKEN=ваш-секретный-токен \
+  -e TELEGRAM_API_ID=12345 \
+  -e TELEGRAM_API_HASH=abc123 \
+  -v ./telegram.session:/app/telegram.session \
+  -v ./data:/app/data \
+  -p 3000:3000 \
+  telegram-mcp
 ```
 
 ## Инструменты (Tools)
@@ -103,5 +182,5 @@ data/
 
 - Сессия Telegram хранится в файле (добавлен в .gitignore)
 - API credentials в .env (добавлен в .gitignore)
-- Транспорт stdio — сервер не открывает сетевых портов
-- Медицинские данные хранятся только локально
+- HTTP транспорт защищён Bearer token авторизацией
+- Данные хранятся только локально
