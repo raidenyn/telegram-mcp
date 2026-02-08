@@ -10,13 +10,21 @@ const server = new McpServer({
 
 registerTools(server);
 
+const TRANSPORT = process.env.TRANSPORT || "stdio";
+
 async function runStdio(): Promise<void> {
   const transport = new StdioServerTransport();
   await server.connect(transport);
   console.error("Telegram MCP server running on stdio");
 }
 
-runStdio().catch((error) => {
+async function runHttp(): Promise<void> {
+  const { createHttpServer } = await import("./http.js");
+  await createHttpServer(server);
+}
+
+const run = TRANSPORT === "http" ? runHttp : runStdio;
+run().catch((error) => {
   console.error("Server error:", error);
   process.exit(1);
 });

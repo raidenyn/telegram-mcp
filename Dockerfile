@@ -21,8 +21,10 @@ RUN npm ci --omit=dev
 COPY --from=build /app/dist/ ./dist/
 
 VOLUME /app/data
+EXPOSE 3000
 
 ENV TELEGRAM_SESSION_PATH=/app/telegram.session \
-    DATA_DIR=/app/data
+    DATA_DIR=/app/data \
+    TRANSPORT=stdio
 
 ENTRYPOINT ["node", "dist/index.js"]
